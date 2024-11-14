@@ -42,7 +42,7 @@ def rollout(
         # Step the simulation forward
         next_o, r, terminated, truncated, _ = env.step(copy.deepcopy(action))
         done = terminated or truncated
-        done_no_max = 0 if episode_step + 1 == 100 else done  # changed for this!!
+        done_no_max = 0 if episode_step + 1 == 500 else done  # changed for this!!
         if replay_buffer is not None:
             replay_buffer.add(o, action, r, next_o, done, done_no_max)
 
@@ -144,9 +144,11 @@ def rollout_frames(
         next_o, r, terminated, truncated, _ = env.step(copy.deepcopy(action))
         done = terminated or truncated
 
-
         # Render the environment
         frames.append(env.render())
+        if len(frames) >= 1000:
+            frames.pop(0)  # Remove the oldest frame
+
         if done:
             break
         o = next_o

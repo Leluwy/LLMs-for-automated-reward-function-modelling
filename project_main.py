@@ -4,22 +4,29 @@ from PIL import Image
 import random
 
 import numpy as np
+import gym
 
 import torch
 import sac
 from agents import train_agent
 from utils import ReplayBuffer
+from rollouts import evaluate, evaluate_agent, rollout, rollout_frames
+
+from video import create_video
 
 # random seed
 torch.manual_seed(0)
 random.seed(0)
 np.random.seed(0)
 
+train = True  # if train the model or load from trained
+video = True  # if video is displayed
+
 print("Metaworld...")
 
 print(metaworld.ML1.ENV_NAMES)
 
-env_name = 'assembly-v2'  # Pick an environment name
+env_name = 'reach-v2'  # Pick an environment name
 
 SEED = 0  # random seed
 benchmark = metaworld.ML1(env_name, seed=SEED)
@@ -46,10 +53,10 @@ action_range = [
         float(env.action_space.low.min()),
         float(env.action_space.high.max())]
 
-num_train_steps = 30_000
+num_train_steps = 20_000
 num_seed_steps = 5000
 eval_frequency = 5_000
-num_eval_episodes = 10
+num_eval_episodes = 5
 replay_buffer = ReplayBuffer(obs_size, ac_size, num_train_steps, device)
 hidden_dim = 256
 hidden_depth = 2
@@ -74,30 +81,30 @@ agent = sac.SACAgent(
                 double_critic=True,
                 temperature=True
             )
+if train:
+    policy_loss, critic_loss, batch_reward, frames = (
+                    train_agent(agent,
+                                env,
+                                num_train_steps=num_train_steps,
+                                num_seed_steps=num_seed_steps,
+                                eval_frequency=eval_frequency,
+                                num_eval_episodes=num_eval_episodes,
+                                replay_buffer=replay_buffer))
 
-policy_loss, critic_loss, batch_reward = (
-                train_agent(agent,
-                            env,
-                            num_train_steps=num_train_steps,
-                            num_seed_steps=num_seed_steps,
-                            eval_frequency=eval_frequency,
-                            num_eval_episodes=num_eval_episodes,
-                            replay_buffer=replay_buffer))
+    agent.save(f'model_final.pth')
+    create_video(frames, 'output_video_train.mp4')
 
-agent.save(f'model_final.pth')
+
+# Load the saved state dictionary
+agent.actor.load_state_dict(torch.load('model_final.pth')["actor"])
+evaluate_agent(env, agent, "final", num_episodes=1, verbose=True)
 
 obs = env.reset()
 
-for i in range(100):
-    a = env.action_space.sample()  # Sample an action
-    a = [0, 0, 10, 0]
-    obs, reward, terminate, truncate, info = env.step(a)  # Step the environment with the sampled random action
+if video:
+    max_episode_steps = 500
+    env = gym.wrappers.TimeLimit(env, max_episode_steps=max_episode_steps)
 
-# Render and save the image
-img = env.render()  # Capture the rendered image as an RGB array
-img_pil = Image.fromarray(img)  # Convert the array to a PIL image
-img_pil.save("assembly_v2_sample_image.png")  # Save the image as a PNG file
+    frames = rollout_frames(env, agent)
 
-print("Image saved as 'assembly_v2_sample_image.png'")
-
-img_pil.show()
+    create_video(frames)
