@@ -10,9 +10,6 @@ import utils
 from rollouts import evaluate_agent
 from utils import eval_mode
 
-print(torch.__version__)
-print(np.__version__)
-
 class GenericACAgent:
     """SAC algorithm."""
 

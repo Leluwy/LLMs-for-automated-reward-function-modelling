@@ -3,10 +3,17 @@ from PIL import Image
 
 import random
 
+import numpy as np
+
 import torch
 import sac
 from agents import train_agent
 from utils import ReplayBuffer
+
+# random seed
+torch.manual_seed(0)
+random.seed(0)
+np.random.seed(0)
 
 print("Metaworld...")
 
@@ -39,9 +46,9 @@ action_range = [
         float(env.action_space.low.min()),
         float(env.action_space.high.max())]
 
-num_train_steps = 10_000
+num_train_steps = 30_000
 num_seed_steps = 5000
-eval_frequency = 10_000
+eval_frequency = 5_000
 num_eval_episodes = 10
 replay_buffer = ReplayBuffer(obs_size, ac_size, num_train_steps, device)
 hidden_dim = 256
@@ -78,6 +85,8 @@ policy_loss, critic_loss, batch_reward = (
                             replay_buffer=replay_buffer))
 
 agent.save(f'model_final.pth')
+
+obs = env.reset()
 
 for i in range(100):
     a = env.action_space.sample()  # Sample an action
