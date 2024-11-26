@@ -3,6 +3,9 @@ from PIL import Image
 import requests
 import re
 
+# Define the directory where models will be saved
+MODEL_DIR = './saved_model'
+
 
 # Load the processor and model
 def load_model_and_processor():
@@ -19,6 +22,12 @@ def load_model_and_processor():
         torch_dtype='auto',
         device_map='auto'
     )
+
+    # Save them locally
+    processor.save_pretrained(MODEL_DIR)
+    model.save_pretrained(MODEL_DIR)
+    print(f"Model and processor saved to {MODEL_DIR}")
+
     return load_processor, load_model
 
 
