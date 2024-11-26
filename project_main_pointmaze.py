@@ -6,6 +6,9 @@ import random
 import numpy as np
 import gym
 
+# rom garage.envs import PointMaze
+from garage.envs import GymEnv
+
 import torch
 import sac
 from agents import train_agent
@@ -19,7 +22,7 @@ torch.manual_seed(0)
 random.seed(0)
 np.random.seed(0)
 
-train = True  # if train the model or load from trained
+train = False  # if train the model or load from trained
 video = True  # if video is displayed
 
 print("Metaworld...")
@@ -27,8 +30,6 @@ print("Metaworld...")
 print(metaworld.ML1.ENV_NAMES)
 
 env_name = 'reach-v2'  # Pick an environment name
-
-print("\nEnvironment: ", env_name)
 
 SEED = 0  # random seed
 benchmark = metaworld.ML1(env_name, seed=SEED)
@@ -55,7 +56,7 @@ action_range = [
         float(env.action_space.low.min()),
         float(env.action_space.high.max())]
 
-num_train_steps = 50_000
+num_train_steps = 250_000
 num_seed_steps = 5000
 eval_frequency = 5_000
 num_eval_episodes = 5
@@ -99,16 +100,14 @@ if train:
 
 # Load the saved state dictionary
 agent.actor.load_state_dict(torch.load('model_final.pth')["actor"])
-evaluate_agent(env, agent, "final", num_episodes=10, verbose=True)
+evaluate_agent(env, agent, "final", num_episodes=1, verbose=True)
 
 obs = env.reset()
 
 if video:
-    max_episode_steps = 300
-    task = random.choice(ml1.train_tasks)
-    env.set_task(task)  # Set task
+    max_episode_steps = 500
     env = gym.wrappers.TimeLimit(env, max_episode_steps=max_episode_steps)
 
     frames = rollout_frames(env, agent)
 
-    create_video(frames, "vide_eval.mp4")
+    create_video(frames)

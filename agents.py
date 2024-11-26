@@ -10,6 +10,8 @@ import utils
 from rollouts import evaluate_agent
 from utils import eval_mode
 
+from video import create_video
+
 class GenericACAgent:
     """SAC algorithm."""
 
@@ -153,6 +155,7 @@ def train_agent(agent, env, num_train_steps, num_seed_steps, eval_frequency, num
     episode, episode_reward, done = 0, 0, True
     step = 0
     since_last_eval = 0
+    timestep = 0
     actor_loss = []
     critic_loss = []
     batch_reward = []
@@ -187,7 +190,7 @@ def train_agent(agent, env, num_train_steps, num_seed_steps, eval_frequency, num
             batch_reward.append(result[0])
             if result is not None:
                 # tuple is train_batch_reward, critic_loss, actor_loss, actor_entropy, alpha_loss
-                if step % 5000 == 0:
+                if step % 1000 == 0:
                     # round these tensors to 4 decimal places
                     result = tuple(map(lambda x: round(x, 4), result))
                     print(
@@ -198,17 +201,24 @@ def train_agent(agent, env, num_train_steps, num_seed_steps, eval_frequency, num
 
         # Render the environment
         frames.append(env.render())
+        timestep += 1
         if len(frames) >= 1000:
             frames.pop(0)  # Remove the oldest frame
+            if timestep % 1000 == 0:
+                create_video(frames)
         done = terminated or truncated
 
         # allow infinite bootstrap
         done = float(done)
-        done_no_max = 0 if episode_step + 1 == 500 else done  # changed!!
+        done_no_max = 0 if episode_step + 1 == 300 else done  # changed!!
         episode_reward += reward
 
         replay_buffer.add(obs, action, reward, next_obs, done,
                           done_no_max)
+
+        if terminated:
+            print("done...")
+            next_obs = env.reset()[0] if isinstance(env, gym.Env) else env.reset()  # reset environment
 
         obs = next_obs
         episode_step += 1

@@ -41,8 +41,9 @@ def rollout(
                 action = agent.act(o_for_agent, sample=False)
         # Step the simulation forward
         next_o, r, terminated, truncated, _ = env.step(copy.deepcopy(action))
+        # print("reward: ", r)
         done = terminated or truncated
-        done_no_max = 0 if episode_step + 1 == 500 else done  # changed for this!!
+        done_no_max = 0 if episode_step + 1 == 300 else done  # changed for this!!
         if replay_buffer is not None:
             replay_buffer.add(o, action, r, next_o, done, done_no_max)
 
@@ -54,6 +55,8 @@ def rollout(
         actions.append(action)
         rewards.append(r)
         dones.append(done)
+        if terminated:
+            print("DONE")
         if done:
             break
         o = next_o
