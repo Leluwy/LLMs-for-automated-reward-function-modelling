@@ -1,6 +1,4 @@
-
 import abc
-
 
 import gymnasium as gym
 import numpy as np
@@ -11,6 +9,11 @@ from rollouts import evaluate_agent
 from utils import eval_mode
 
 from video import create_video
+from CLIP import generate_image_embedding, cosine_similarity
+
+import random
+from rollouts import rollout, rollout_frames
+
 
 class GenericACAgent:
     """SAC algorithm."""
@@ -146,7 +149,8 @@ class GenericACAgent:
             self.log_alpha_optimizer.load_state_dict(state['log_alpha_optimizer'])
 
 
-def train_agent(agent, env, num_train_steps, num_seed_steps, eval_frequency, num_eval_episodes, replay_buffer):
+def train_agent(agent, env, num_train_steps, num_seed_steps, eval_frequency, num_eval_episodes, replay_buffer,
+                environment_eval, LLM_rewards=False, task_embedding=None, vision_model=None):
     """
     Generic training loop for an agent. It runs num_seed_steps of random exploration and then does the training loop.
     In the training loop, it samples an action, takes an environment step, and then updates the agent with a sampled batch
@@ -168,6 +172,15 @@ def train_agent(agent, env, num_train_steps, num_seed_steps, eval_frequency, num
                 evaluate_agent(env, agent, step, num_episodes=num_eval_episodes)
                 since_last_eval = 0
 
+                max_episode_steps = 300
+                task = random.choice(environment_eval.train_tasks)
+                env.set_task(task)  # Set task
+                env = gym.wrappers.TimeLimit(env, max_episode_steps=max_episode_steps)
+
+                frames = rollout_frames(env, agent)
+
+                create_video(frames, "vide_eval.mp4")
+
             obs = env.reset()[0] if isinstance(env, gym.Env) else env.reset()
             done = False
             episode_reward = 0
@@ -176,6 +189,8 @@ def train_agent(agent, env, num_train_steps, num_seed_steps, eval_frequency, num
         # sample action for data collection
         if step < num_seed_steps:
             action = env.action_space.sample()
+            if step % 100 == 0:
+                print("seed step: ", step)
         else:
             with eval_mode(agent):
                 action = agent.act(obs, sample=True)
@@ -200,7 +215,14 @@ def train_agent(agent, env, num_train_steps, num_seed_steps, eval_frequency, num
         next_obs, reward, terminated, truncated, _ = env.step(action)
 
         # Render the environment
-        frames.append(env.render())
+        frame = env.render()
+
+        # LLM reward
+        if LLM_rewards:
+            image_embd = generate_image_embedding(vision_model, frame)
+            reward = cosine_similarity(task_embedding, image_embd)
+
+        frames.append(frame)
         timestep += 1
         if len(frames) >= 1000:
             frames.pop(0)  # Remove the oldest frame

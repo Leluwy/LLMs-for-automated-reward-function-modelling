@@ -13,6 +13,7 @@ from utils import ReplayBuffer
 from rollouts import evaluate, evaluate_agent, rollout, rollout_frames
 
 from video import create_video
+from CLIP import generate_prompt_embedding, load_openclip_model
 
 # random seed
 torch.manual_seed(0)
@@ -21,6 +22,8 @@ np.random.seed(0)
 
 train = True  # if train the model or load from trained
 video = True  # if video is displayed
+LLM_rewards = True   # if you use LLM rewards
+model_name = "ViT-L-14"  # use one of
 
 print("Metaworld...")
 
@@ -65,6 +68,19 @@ hidden_depth = 2
 batch_size = 500
 discount_factor = 0.99
 
+model = None
+task_embedding = None
+
+if LLM_rewards:
+    # Load model and tokenizer
+    model, tokenizer = load_openclip_model(model_name=model_name)
+
+    # Generate embedding for a prompt
+    prompt = f"""“keep the robot arm’s end-effector close to the red ball target in the 3D workspace”"""
+    print("Task Prompt: ", prompt)
+    task_embedding = generate_prompt_embedding(model, tokenizer, prompt)
+    print(task_embedding.shape)
+
 agent = sac.SACAgent(
                 obs_dim=obs_size,
                 action_dim=ac_size,
@@ -91,7 +107,11 @@ if train:
                                 num_seed_steps=num_seed_steps,
                                 eval_frequency=eval_frequency,
                                 num_eval_episodes=num_eval_episodes,
-                                replay_buffer=replay_buffer))
+                                replay_buffer=replay_buffer,
+                                environment_eval=ml1,
+                                LLM_rewards=LLM_rewards,
+                                task_embedding=task_embedding,
+                                vision_model=model))
 
     agent.save(f'model_final.pth')
     create_video(frames, 'output_video_train.mp4')
