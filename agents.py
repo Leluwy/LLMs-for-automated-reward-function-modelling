@@ -14,7 +14,7 @@ from CLIP import generate_image_embedding, cosine_similarity
 import random
 from rollouts import rollout, rollout_frames
 
-
+random.seed(0)
 class GenericACAgent:
     """SAC algorithm."""
 
@@ -150,7 +150,7 @@ class GenericACAgent:
 
 
 def train_agent(agent, env, num_train_steps, num_seed_steps, eval_frequency, num_eval_episodes, replay_buffer,
-                environment_eval, LLM_rewards=False, task_embedding=None, vision_model=None):
+                environment_eval, LLM_rewards=False, task_embedding=None, vision_model=None, env_camera_additional=None):
     """
     Generic training loop for an agent. It runs num_seed_steps of random exploration and then does the training loop.
     In the training loop, it samples an action, takes an environment step, and then updates the agent with a sampled batch
@@ -164,24 +164,20 @@ def train_agent(agent, env, num_train_steps, num_seed_steps, eval_frequency, num
     critic_loss = []
     batch_reward = []
     frames = []
+    frames_additional = []
     while step < num_train_steps:
         if done:
             # evaluate agent periodically
             if since_last_eval > eval_frequency:
                 # Note the step here will fluctuate as it waits until terminaton to evaluate, but this is ok.
-                evaluate_agent(env, agent, step, num_episodes=num_eval_episodes)
+                frames_eval = evaluate_agent(env, agent, step, num_episodes=num_eval_episodes)
                 since_last_eval = 0
 
-                max_episode_steps = 300
-                task = random.choice(environment_eval.train_tasks)
-                env.set_task(task)  # Set task
-                env = gym.wrappers.TimeLimit(env, max_episode_steps=max_episode_steps)
-
-                frames = rollout_frames(env, agent)
-
-                create_video(frames, "vide_eval.mp4")
+                create_video(frames_eval, "vide_eval.mp4")
 
             obs = env.reset()[0] if isinstance(env, gym.Env) else env.reset()
+            if env_camera_additional is not None:
+                obs = env_camera_additional.reset()[0] if isinstance(env_camera_additional, gym.Env) else env_camera_additional.reset()
             done = False
             episode_reward = 0
             episode_step = 0
@@ -217,17 +213,32 @@ def train_agent(agent, env, num_train_steps, num_seed_steps, eval_frequency, num
         # Render the environment
         frame = env.render()
 
+        if env_camera_additional is not None:
+            env_camera_additional.step(action)
+            frame_additional = env_camera_additional.render()
+            frames_additional.append(frame_additional)
+
         # LLM reward
         if LLM_rewards:
             image_embd = generate_image_embedding(vision_model, frame)
-            reward = cosine_similarity(task_embedding, image_embd)
+            llm_reward = cosine_similarity(task_embedding, image_embd)
+
+            if env_camera_additional is not None:
+                image_additional_embd = generate_image_embedding(vision_model, frame_additional)
+                llm_reward += cosine_similarity(task_embedding, image_additional_embd)
+                llm_reward /= 2
+            reward = llm_reward
 
         frames.append(frame)
         timestep += 1
         if len(frames) >= 1000:
             frames.pop(0)  # Remove the oldest frame
+            if env_camera_additional is not None:
+                frames_additional.pop(0)
             if timestep % 1000 == 0:
                 create_video(frames)
+                if env_camera_additional is not None:
+                    create_video(frames_additional, video_name='output_video_additional.mp4')
         done = terminated or truncated
 
         # allow infinite bootstrap
@@ -245,4 +256,4 @@ def train_agent(agent, env, num_train_steps, num_seed_steps, eval_frequency, num
         obs = next_obs
         episode_step += 1
         step += 1
-    return actor_loss, critic_loss, batch_reward, frames
+    return actor_loss, critic_loss, batch_reward, frames, frames_additional

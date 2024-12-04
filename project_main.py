@@ -17,12 +17,12 @@ from CLIP import generate_prompt_embedding, load_openclip_model
 
 # random seed
 torch.manual_seed(0)
-random.seed(0)
 np.random.seed(0)
+random.seed(0)
 
 train = True  # if train the model or load from trained
 video = True  # if video is displayed
-LLM_rewards = True   # if you use LLM rewards
+LLM_rewards = False   # if you use LLM rewards
 model_name = "ViT-L-14"  # use one of
 
 print("Metaworld...")
@@ -40,12 +40,15 @@ render_mode = 'rgb_array'  # set a render mode
 
 ml1 = metaworld.ML1(env_name)  # construct the benchmark, sampling tasks
 
-camera_name = 'corner3'  # one of: ['corner', 'corner2', 'corner3', 'topview', 'behindGripper', 'gripperPOV']
+camera_name = 'topview'  # one of: ['corner', 'corner2', 'corner3', 'topview', 'behindGripper', 'gripperPOV']
+camera_name_second = 'behindGripper'
 
 env = ml1.train_classes[env_name](render_mode=render_mode, camera_name=camera_name)
+env_camera_additional = ml1.train_classes[env_name](render_mode=render_mode, camera_name=camera_name_second)
 
 task = random.choice(ml1.train_tasks)
 env.set_task(task)  # Set task
+env_camera_additional.set_task(task)  # Set task
 
 obs = env.reset()  # Reset environment
 
@@ -58,10 +61,10 @@ action_range = [
         float(env.action_space.low.min()),
         float(env.action_space.high.max())]
 
-num_train_steps = 50_000
-num_seed_steps = 5000
-eval_frequency = 5_000
-num_eval_episodes = 5
+num_train_steps = 100_000
+num_seed_steps = 10_000
+eval_frequency = 2_000
+num_eval_episodes = 2
 replay_buffer = ReplayBuffer(obs_size, ac_size, num_train_steps, device)
 hidden_dim = 256
 hidden_depth = 2
@@ -73,7 +76,7 @@ task_embedding = None
 
 if LLM_rewards:
     # Load model and tokenizer
-    model, tokenizer = load_openclip_model(model_name=model_name)
+    model, tokenizer = load_openclip_model(model_name=model_name, pretrained='laion2b_s32b_b79k')
 
     # Generate embedding for a prompt
     prompt = f"""“keep the robot arm’s end-effector close to the red ball target in the 3D workspace”"""
@@ -100,7 +103,7 @@ agent = sac.SACAgent(
                 temperature=True
             )
 if train:
-    policy_loss, critic_loss, batch_reward, frames = (
+    policy_loss, critic_loss, batch_reward, frames, frames_additional = (
                     train_agent(agent,
                                 env,
                                 num_train_steps=num_train_steps,
@@ -111,7 +114,8 @@ if train:
                                 environment_eval=ml1,
                                 LLM_rewards=LLM_rewards,
                                 task_embedding=task_embedding,
-                                vision_model=model))
+                                vision_model=model,
+                                env_camera_additional=env_camera_additional))
 
     agent.save(f'model_final.pth')
     create_video(frames, 'output_video_train.mp4')
@@ -119,13 +123,12 @@ if train:
 
 # Load the saved state dictionary
 agent.actor.load_state_dict(torch.load('model_final.pth')["actor"])
-evaluate_agent(env, agent, "final", num_episodes=10, verbose=True)
+evaluate_agent(env, agent, "final", num_episodes=5, verbose=True)
 
 obs = env.reset()
 
 if video:
     max_episode_steps = 300
-    task = random.choice(ml1.train_tasks)
     env.set_task(task)  # Set task
     env = gym.wrappers.TimeLimit(env, max_episode_steps=max_episode_steps)
 

@@ -8,7 +8,13 @@ import numpy as np
 from networks import PGPolicy
 from utils import device, eval_mode
 
+import gymnasium as gym
+
+import random
+
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+random.seed(0)
 
 
 def rollout(
@@ -39,6 +45,7 @@ def rollout(
         else:
             with eval_mode(agent):
                 action = agent.act(o_for_agent, sample=False)
+
         # Step the simulation forward
         next_o, r, terminated, truncated, _ = env.step(copy.deepcopy(action))
         # print("reward: ", r)
@@ -85,12 +92,20 @@ def rollout(
 
 
 def evaluate(env, policy, num_validation_runs=10, render=False):
+    import random
+    import metaworld
     success_count = 0
     rewards_suc = 0
     rewards_all = 0
+    ml1 = metaworld.ML1('reach-v2')
     for k in range(num_validation_runs):
+
+        random.seed(0)
+        task = random.choice(ml1.train_tasks)
+        env_evaluation = env
+        env_evaluation.set_task(task)  # Set task
         path = rollout(
-            env,
+            env_evaluation,
             policy,
             render=render)
         if env.spec.id == 'Ant-v5':
@@ -108,20 +123,28 @@ def evaluate(env, policy, num_validation_runs=10, render=False):
     print("Average reward (all): ", rewards_all / num_validation_runs)
 
 
-def evaluate_agent(env, agent, step, verbose=False, num_episodes=10):
+def evaluate_agent(eval_env, agent, step, verbose=False, num_episodes=10):
+    import random
+    import metaworld
     average_episode_reward = 0
     av_ep_ln = 0
     for _ in range(num_episodes):
-        result = rollout(env, agent)
+
+        max_episode_steps = 300
+        random.seed(0)
+
+        result = rollout(eval_env, agent)
         ep_ln = len(result['rewards'])
         episode_reward = np.sum(result['rewards'])
         average_episode_reward += episode_reward
         av_ep_ln += ep_ln
         if verbose:
             print(f"eval episode reward {episode_reward}, episode length {ep_ln}")
+    frames_eval = rollout_frames(eval_env, agent)
     average_episode_reward /= num_episodes
     av_ep_ln /= num_episodes
     print(f"eval step {step}, average episode reward {average_episode_reward}, average episode length {av_ep_ln}")
+    return frames_eval
 
 
 def rollout_frames(
@@ -149,7 +172,7 @@ def rollout_frames(
 
         # Render the environment
         frames.append(env.render())
-        if len(frames) >= 1000:
+        if len(frames) >= 2000:
             frames.pop(0)  # Remove the oldest frame
 
         if done:
