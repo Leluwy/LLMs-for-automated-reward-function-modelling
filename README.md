@@ -6,14 +6,20 @@ This project explores reinforcement learning (RL) and the use of vision-language
 ## Project Structure
 
 ```
+├── agents.py                    # Core agents implementation
+├── CLIP.py                      # Leveraging CLIP for reward function modeling
+├── model_final.pth              # Trained model weights
+├── Molmo.py                     # Additional module for reward modeling
+├── networks.py                  # Neural network architectures
+├── project_main.py              # Main script for the project
+├── project_main_pointmaze.py    # Script for the PointMaze environment
 RL/
-├── CLIP.py                       # Leveraging CLIP for reward function modeling
-├── Molmo.py                      # Additional module for reward modeling
-├── project_main.py               # Main script for the project
-├── project_main_pointmaze.py     # Script for the PointMaze environment
-├── video.py                      # Script for video generation and evaluation
-├── vide_eval.mp4                 # Example video demonstrating evaluation results
-├── .gitignore                    # Git ignore file
+├── rollouts.py                  # Rollout implementation for training and evaluation
+├── sac.py                       # Soft Actor-Critic implementation
+├── utils.py                     # Utility functions for the project
+├── video.py                     # Script for video generation and evaluation
+├── vide_eval.mp4                # Example video demonstrating evaluation results
+├── .gitignore                   # Git ignore file
 ```
 
 ## Key Features
