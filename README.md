@@ -1,5 +1,3 @@
-# RL Project
-
 ## Overview
 This project explores reinforcement learning (RL) and the use of vision-language models (VLMs) and large language models (LLMs) to automate reward function modeling.
 
